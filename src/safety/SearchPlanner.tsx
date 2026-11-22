@@ -6,9 +6,17 @@ import './searchPlanner.css'
 
 type Area = keyof typeof geography.areas
 type Travel = 'walk' | 'car'
-type Report = { area: Area; travel: Travel; seen: number; created: number }
+type Report = {
+  area: Area
+  travel: Travel
+  seen: number
+  created: number
+  missingPersonDescription?: string
+  suspectedAbductorDescription?: string
+}
 const prefix = 'comforce.search-demo.v1.'
 const lifetime = 48 * 60 * 60 * 1000
+const descriptionLimit = 500
 const speeds = { walk: 3, car: 30 }
 const areas = Object.keys(geography.areas) as Area[]
 const milesToMapUnits = 48.1 / 2 // Same two-mile scale as NeighborhoodMap.
@@ -22,7 +30,13 @@ function readReports(now: number) {
     if (!row || !areas.includes(row.area) || !Object.hasOwn(speeds, row.travel)
       || !Number.isFinite(row.seen) || !Number.isFinite(row.created) || row.seen > row.created) continue
     if (now >= row.created + lifetime) localStorage.removeItem(key)
-    else reports.push(row)
+    else reports.push({
+      ...row,
+      missingPersonDescription: typeof row.missingPersonDescription === 'string'
+        ? row.missingPersonDescription.slice(0, descriptionLimit) : undefined,
+      suspectedAbductorDescription: typeof row.suspectedAbductorDescription === 'string'
+        ? row.suspectedAbductorDescription.slice(0, descriptionLimit) : undefined,
+    })
   }
   return reports.sort((a, b) => b.created - a.created)
 }
@@ -56,7 +70,11 @@ export default function SearchPlanner() {
     const seen = new Date(String(data.get('seen'))).getTime()
     const created = Date.now()
     if (!Number.isFinite(seen) || seen > created) { say('Choose a last-seen time in the past.'); return }
-    const row = { area: data.get('area'), travel: data.get('travel'), seen, created }
+    const row = {
+      area: data.get('area'), travel: data.get('travel'), seen, created,
+      missingPersonDescription: String(data.get('missingPersonDescription') ?? '').trim().slice(0, descriptionLimit),
+      suspectedAbductorDescription: String(data.get('suspectedAbductorDescription') ?? '').trim().slice(0, descriptionLimit),
+    }
     try { localStorage.setItem(prefix + created, JSON.stringify(row)) }
     catch { say('This browser could not save the report.'); return }
     select(created)
@@ -80,6 +98,16 @@ export default function SearchPlanner() {
         <label>Last-seen neighborhood<select name="area">{areas.map(area => <option key={area}>{area}</option>)}</select></label>
         <label>Last seen (your local time)<input required type="datetime-local" name="seen" /></label>
         <label>Travel assumption<select name="travel"><option value="walk">Walking · 3 mph</option><option value="car">Driving · 30 mph</option></select></label>
+        <label>
+          Missing person description (optional)
+          <textarea name="missingPersonDescription" rows={3} maxLength={descriptionLimit}
+            placeholder="Example: Green coat, black backpack, white sneakers" />
+        </label>
+        <label>
+          Suspected abductor description (optional)
+          <textarea name="suspectedAbductorDescription" rows={3} maxLength={descriptionLimit}
+            placeholder="Example: Gray sweatshirt, driving a dark blue van" />
+        </label>
         <button>Create demo report</button>
       </form>
       <p role="status">{storageError ? 'Browser storage is unavailable.' : message}</p>
@@ -102,6 +130,12 @@ export default function SearchPlanner() {
       <figcaption>{row ? <><strong>{row.area} · {miles.toLocaleString(undefined, {maximumFractionDigits: 1})} mi radius</strong>
         <p>From the neighborhood center, assuming continuous travel at {speeds[row.travel]} mph. Shading can extend beyond the city view. Roads, stops and direction are unknown. The circle is neither a location prediction nor a maximum distance.</p>
         <p>Updates every minute · Closes {timeLabel(row.created + lifetime)}</p>
+        {row.missingPersonDescription && <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          <strong>Missing person description</strong><br />{row.missingPersonDescription}
+        </p>}
+        {row.suspectedAbductorDescription && <p style={{ whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+          <strong>Suspected abductor description</strong><br />{row.suspectedAbductorDescription}
+        </p>}
         <button type="button" onClick={() => close(row)}>Close this report</button></> : 'Create a fictional report to see its estimated travel radius.'}</figcaption>
     </figure>
   </section>
