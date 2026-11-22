@@ -1,3 +1,4 @@
+import SearchPlanner from './SearchPlanner'
 import CrimeHeatmap from './CrimeHeatmap'
 import { crimeSources, neighborhoodSummary } from './crimeData'
 import './safety.css'
@@ -16,6 +17,8 @@ export default function Safety() {
         <p className="safety-period"><strong>Comparison period</strong><span>January 1–October 31 · 2025 and 2026</span></p>
       </div>
     </header>
+
+    <details className="search-disclosure"><summary>Missing-person search map · fictional demo</summary><SearchPlanner /></details>
 
     <div className="safety-spread">
       <CrimeHeatmap />
