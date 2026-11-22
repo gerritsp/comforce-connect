@@ -22,6 +22,14 @@ const areas = Object.keys(geography.areas) as Area[]
 const milesToMapUnits = 48.1 / 2 // Same two-mile scale as NeighborhoodMap.
 const timeLabel = (time: number) => new Date(time).toLocaleString()
 
+function localDate(time: number, dayOffset = 0) {
+  const date = new Date(time)
+  date.setDate(date.getDate() + dayOffset)
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
 function readReports(now: number) {
   const reports: Report[] = []
   for (const key of Object.keys(localStorage).filter(key => key.startsWith(prefix))) {
@@ -67,9 +75,26 @@ export default function SearchPlanner() {
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const data = new FormData(event.currentTarget)
-    const seen = new Date(String(data.get('seen'))).getTime()
+    const day = data.get('seenDay')
+    const clock = data.get('seenTime')
     const created = Date.now()
-    if (!Number.isFinite(seen) || seen > created) { say('Choose a last-seen time in the past.'); return }
+    if (day !== localDate(created) && day !== localDate(created, -1)) {
+      say('Choose today or yesterday.')
+      refresh()
+      return
+    }
+    const localTime = `${day}T${clock}`
+    const seen = new Date(localTime).getTime()
+    if (!Number.isFinite(seen) || seen > created) {
+      say('Choose a last-seen time that has already passed.')
+      return
+    }
+    const seenDate = new Date(seen)
+    const actualTime = `${String(seenDate.getHours()).padStart(2, '0')}:${String(seenDate.getMinutes()).padStart(2, '0')}`
+    if (clock !== actualTime) {
+      say('Choose a valid time on that day.')
+      return
+    }
     const row = {
       area: data.get('area'), travel: data.get('travel'), seen, created,
       missingPersonDescription: String(data.get('missingPersonDescription') ?? '').trim().slice(0, descriptionLimit),
@@ -96,7 +121,11 @@ export default function SearchPlanner() {
       <p>Use fictional details. Reports stay in this browser and expire 48 hours after creation. This demo sends no alert to responders.</p>
       <form onSubmit={save}>
         <label>Last-seen neighborhood<select name="area">{areas.map(area => <option key={area}>{area}</option>)}</select></label>
-        <label>Last seen (your local time)<input required type="datetime-local" name="seen" /></label>
+        <label>Last seen day (your local date)<select name="seenDay">
+          <option value={localDate(now)}>Today</option>
+          <option value={localDate(now, -1)}>Yesterday</option>
+        </select></label>
+        <label>Last seen time (your local time)<input required type="time" name="seenTime" /></label>
         <label>Travel assumption<select name="travel"><option value="walk">Walking · 3 mph</option><option value="car">Driving · 30 mph</option></select></label>
         <label>
           Missing person description (optional)
